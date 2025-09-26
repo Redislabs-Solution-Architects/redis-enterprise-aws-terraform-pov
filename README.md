@@ -3,6 +3,15 @@
 This project deploys a **Redis Enterprise** single-node PoV environment on AWS using Terraform.  
 It provisions an EC2 instance (default: `r6i.xlarge` with 32 GB gp3 root disk), installs Redis Enterprise on RHEL 9, creates a single-node cluster, and optionally provisions a Redis database.
 
+> **Important:** The bootstrap script can take up to 5 minutes to finish.  
+> During this time the Admin UI and API may not be available.  
+> You can watch progress with:
+> ```bash
+> ssh -i <your-key>.pem ec2-user@<public-ip>
+> sudo -i
+> tail -f /var/log/cloud-init-output.log
+> ```
+
 ---
 
 ## 📂 Project Structure
