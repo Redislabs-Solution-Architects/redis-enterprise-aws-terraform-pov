@@ -73,6 +73,12 @@ variable "shards_count" {
   default = 1
 }
 
+variable "db_port" {
+  description = "Fixed TCP port for the Redis DB (must be free, typically 12000-19999)."
+  type        = number
+  default     = 12000
+}
+
 variable "suffix" {
   type        = string
   default     = ""

@@ -23,6 +23,7 @@ resource "aws_instance" "redis_re" {
     db_password       = var.db_password
     db_memory_bytes   = var.db_memory_bytes
     shards_count      = var.shards_count
+    db_port           = var.db_port
   })
 
   # Name tag already included via local.common_tags; it resolves to local.effective_prefix

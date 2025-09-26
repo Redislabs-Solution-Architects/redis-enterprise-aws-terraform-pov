@@ -5,7 +5,7 @@ exec > >(tee -a "$LOG") 2>&1
 
 echo "[*] Bootstrap start: $(date)"
 
-# helpers (bash vars use $VAR; avoid the $${...} form in this file so Terraform doesn't template them)
+# helpers
 retry() {
   local attempts="$1"; shift
   local delay="$1"; shift
@@ -82,12 +82,10 @@ echo "[*] Private IP: $PRIVATE_IP"
 # cluster create (optional)
 if [ "${create_cluster}" = "true" ]; then
   echo "[*] Creating cluster"
-  # guard nounset because /etc/profile can reference unset vars
   set +u
   source /etc/profile || true
   set -u
 
-  # ensure rladmin is ready
   wait_for_cmd 30 2 command -v /opt/redislabs/bin/rladmin
 
   retry 5 5 /opt/redislabs/bin/rladmin cluster create \
@@ -103,7 +101,6 @@ fi
 if [ "${create_db}" = "true" ]; then
   echo "[*] Creating DB via API"
 
-  # wait for mgmt API to respond
   retry 30 2 curl -kIs "https://$PRIVATE_IP:9443/v2/bootstrap" >/dev/null
 
   AUTH_B64=$(printf "%s:%s" "${re_username}" "${re_password}" | base64 -w 0 2>/dev/null || printf "%s:%s" "${re_username}" "${re_password}" | base64)

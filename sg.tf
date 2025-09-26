@@ -32,7 +32,7 @@ resource "aws_security_group" "redis_re" {
 
   # Redis DB ephemeral/test range
   ingress {
-    from_port   = 12000
+    from_port   = 10000
     to_port     = 19999
     protocol    = "tcp"
     cidr_blocks = var.allowed_cidrs
