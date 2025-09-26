@@ -1,0 +1,38 @@
+# Terraform state, lock & plan
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.plan
+
+# Local Terraform directories
+**/.terraform/*
+
+# Variable files with sensitive content
+*.tfvars
+*.tfvars.json
+
+# Override files (sometimes used locally)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI config
+.terraformrc
+terraform.rc
+
+# Crash logs
+crash.log
+crash.*.log
+
+# OS / editor artefacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.idea/
+.vscode/
+
+# Python / other
+__pycache__/
+*.pyc

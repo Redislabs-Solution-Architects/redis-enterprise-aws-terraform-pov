@@ -1,0 +1,129 @@
+#!/bin/bash
+set -euo pipefail
+LOG="/var/log/redis-enterprise-init.log"
+exec > >(tee -a "$LOG") 2>&1
+
+echo "[*] Bootstrap start: $(date)"
+
+# helpers (bash vars use $VAR; avoid the $${...} form in this file so Terraform doesn't template them)
+retry() {
+  local attempts="$1"; shift
+  local delay="$1"; shift
+  local n=1
+  until "$@"; do
+    if [ "$n" -ge "$attempts" ]; then
+      echo "[!] Command failed after $attempts attempts: $*"
+      return 1
+    fi
+    echo "[*] Retry $n/$attempts in $delay s: $*"
+    sleep "$delay"
+    n=$((n+1))
+  done
+}
+
+wait_for_cmd() {
+  local attempts="$1"; shift
+  local delay="$1"; shift
+  local n=1
+  until "$@" >/dev/null 2>&1; do
+    if [ "$n" -ge "$attempts" ]; then
+      echo "[!] Timeout waiting for: $*"
+      return 1
+    fi
+    echo "[*] Waiting ($n/$attempts) for: $*"
+    sleep "$delay"
+    n=$((n+1))
+  done
+}
+
+# base deps
+dnf -y install curl tar jq || yum -y install curl tar jq || true
+
+# firewall (PoV)
+if command -v firewall-cmd >/dev/null 2>&1; then
+  systemctl enable --now firewalld || true
+  firewall-cmd --permanent --add-port=22/tcp || true
+  firewall-cmd --permanent --add-port=8443/tcp || true
+  firewall-cmd --permanent --add-port=9443/tcp || true
+  firewall-cmd --permanent --add-port=12000-19999/tcp || true
+  firewall-cmd --reload || true
+fi
+
+cd /root
+
+# bootstrap download & run
+echo "[*] Downloading bootstrap script"
+curl -fsSL "https://raw.githubusercontent.com/gacerioni/redis-rdi-poc-bootstrap-automation/refs/heads/master/redis-rhel-9-server-bootstrap-latest.sh" \
+  -o redis-rhel-9-server-bootstrap-latest.sh
+chmod +x redis-rhel-9-server-bootstrap-latest.sh
+
+echo "[*] Running bootstrap"
+./redis-rhel-9-server-bootstrap-latest.sh
+
+# Redis Enterprise installation
+cd "/root/${redis_version_tar}"
+echo "[*] Extracting tarball"
+tar -xvf "${redis_version_tar}.tar"
+
+echo "[*] Installing Redis Enterprise"
+./install.sh -y
+
+# IMDSv2 private IP
+TOKEN="$(curl -sS -X PUT 'http://169.254.169.254/latest/api/token' \
+  -H 'X-aws-ec2-metadata-token-ttl-seconds: 21600' || true)"
+if [ -n "$TOKEN" ]; then
+  PRIVATE_IP="$(curl -sS -H "X-aws-ec2-metadata-token: $TOKEN" \
+    http://169.254.169.254/latest/meta-data/local-ipv4 || true)"
+else
+  PRIVATE_IP="$(curl -sS http://169.254.169.254/latest/meta-data/local-ipv4 || true)"
+fi
+echo "[*] Private IP: $PRIVATE_IP"
+
+# cluster create (optional)
+if [ "${create_cluster}" = "true" ]; then
+  echo "[*] Creating cluster"
+  # guard nounset because /etc/profile can reference unset vars
+  set +u
+  source /etc/profile || true
+  set -u
+
+  # ensure rladmin is ready
+  wait_for_cmd 30 2 command -v /opt/redislabs/bin/rladmin
+
+  retry 5 5 /opt/redislabs/bin/rladmin cluster create \
+    name "${cluster_fqdn}" \
+    addr "$PRIVATE_IP" \
+    username "${re_username}" \
+    password "${re_password}"
+
+  echo "[*] Cluster created"
+fi
+
+# DB create via Mgmt API (optional)
+if [ "${create_db}" = "true" ]; then
+  echo "[*] Creating DB via API"
+
+  # wait for mgmt API to respond
+  retry 30 2 curl -kIs "https://$PRIVATE_IP:9443/v2/bootstrap" >/dev/null
+
+  AUTH_B64=$(printf "%s:%s" "${re_username}" "${re_password}" | base64 -w 0 2>/dev/null || printf "%s:%s" "${re_username}" "${re_password}" | base64)
+
+  retry 5 5 curl -kiL "https://$PRIVATE_IP:9443/v2/bdbs" \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Basic $AUTH_B64" \
+    --data @- <<JSON
+{
+  "bdb": {
+    "name": "${db_name}",
+    "type": "redis",
+    "memory_size": ${db_memory_bytes},
+    "shards_count": ${shards_count},
+    "authentication_redis_pass": "${db_password}"
+  }
+}
+JSON
+
+  echo "[*] DB create request sent"
+fi
+
+echo "[*] Bootstrap done: $(date)"

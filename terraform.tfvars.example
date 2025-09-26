@@ -1,0 +1,30 @@
+# AWS region
+region       = "us-east-1"
+
+# Networking
+vpc_id       = "vpc-xxxxxxxxxxxxxxxxx"
+subnet_id    = "subnet-xxxxxxxxxxxxxxxxx"
+
+# SSH KeyPair
+ssh_key_name = "my-keypair-name"
+
+# Allowed CIDRs (restrict to your IP range for safety)
+allowed_cidrs = ["0.0.0.0/0"]
+
+# EC2 instance config
+instance_type  = "r6i.xlarge"
+root_volume_gb = 32
+
+# Resource naming
+name_prefix = "redis-re-pov"
+
+# Redis Enterprise configuration
+cluster_fqdn   = "redispov.platformengineer.io"
+re_username    = "admin@example.com"
+re_password    = "Secret_42"
+
+# Database settings
+db_name         = "redis-pj-pov"
+db_password     = "secret42"
+db_memory_bytes = 21474836480 # 20 GiB
+shards_count    = 1
